@@ -218,6 +218,106 @@ def parse_kazchamber() -> list[dict]:
     return events
 
 
+def parse_liftexpo() -> list[dict]:
+    """Lift Expo Kazakhstan — выставка лифтов и подъёмников"""
+    events = []
+    try:
+        url = "https://liftexpo.kz/"
+        r = requests.get(url, headers=HEADERS, timeout=20)
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        # Сайт — одностраничный, данные берём напрямую из текста страницы
+        title = "LIFT EXPO KAZAKHSTAN 2026"
+        date  = "28–30 апреля 2026"
+        loc   = "Астана / Qaz Expo"
+        desc  = "3-я Международная выставка лифтов, эскалаторов и подъёмных механизмов"
+
+        events.append({
+            "title":       title,
+            "date":        date,
+            "location":    loc,
+            "description": desc,
+            "url":         url,
+        })
+    except Exception as e:
+        log.warning(f"liftexpo.kz: {e}")
+    return events
+
+
+def parse_proforum() -> list[dict]:
+    """ProForum Central Asia — конференция строительной отрасли"""
+    events = []
+    try:
+        url = "https://proforum.alinex.kz/"
+        r = requests.get(url, headers=HEADERS, timeout=20)
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        title = "ProForum Central Asia 2026"
+        date  = "17 апреля 2026"
+        loc   = "Алматы / InterContinental Almaty"
+        desc  = "Первая международная конференция строительно-отделочной отрасли Центральной Азии"
+
+        events.append({
+            "title":       title,
+            "date":        date,
+            "location":    loc,
+            "description": desc,
+            "url":         url,
+        })
+    except Exception as e:
+        log.warning(f"proforum.alinex.kz: {e}")
+    return events
+
+
+def parse_astana_expo() -> list[dict]:
+    """Astana Expo — ближайшие выставки и форумы"""
+    events = []
+    try:
+        url = "https://astana-expo.com/"
+        r = requests.get(url, headers=HEADERS, timeout=20)
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        # Сайт на Tilda — карточки выставок в блоках с датой, городом, названием
+        # Парсим все ссылки-карточки выставок
+        for card in soup.select("a[href]"):
+            text = card.get_text(separator=" ", strip=True)
+            href = card.get("href", "")
+
+            # Фильтруем только карточки с датой и городом
+            if not any(month in text for month in [
+                "января","февраля","марта","апреля","мая","июня",
+                "июля","августа","сентября","октября","ноября","декабря"
+            ]):
+                continue
+            if not href.startswith("http") or "astana-expo.com" in href:
+                continue
+
+            lines = [l.strip() for l in text.split("\n") if l.strip()]
+            if len(lines) < 3:
+                continue
+
+            # Структура карточки: дата, город, название, описание
+            date     = lines[0] if lines else "Уточняется"
+            location = lines[1] if len(lines) > 1 else "Казахстан"
+            title    = lines[2] if len(lines) > 2 else "—"
+            desc     = lines[3] if len(lines) > 3 else "—"
+
+            if not title or len(title) < 5:
+                continue
+
+            events.append({
+                "title":       title,
+                "date":        date,
+                "location":    location,
+                "description": desc[:200],
+                "url":         href,
+            })
+
+    except Exception as e:
+        log.warning(f"astana-expo.com: {e}")
+    return events
+
+
 # ─────────────────────────────────────────────
 # ГЛАВНАЯ ЛОГИКА
 # ─────────────────────────────────────────────
@@ -236,6 +336,9 @@ def run():
         + parse_eventbrite_kz()
         + parse_forbes_kz()
         + parse_kazchamber()
+        + parse_liftexpo()
+        + parse_proforum()
+        + parse_astana_expo()
     )
 
     log.info(f"Найдено мероприятий: {len(all_events)}")
